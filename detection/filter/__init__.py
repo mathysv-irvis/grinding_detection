@@ -6,6 +6,8 @@ from .contour_mask import process_contour
 from .lab_mask import process_lab
 from .kmean_mask import process_kmeans
 from .bw_mask import process_bw
+from .morphology_mask import process_morphology
+from .largest_component_mask import process_largest_component
 
 __all__ = [
     "process_contrast",
@@ -16,4 +18,6 @@ __all__ = [
     "process_lab",
     "process_kmeans",
     "process_bw",
+    "process_morphology",
+    "process_largest_component",
 ]
