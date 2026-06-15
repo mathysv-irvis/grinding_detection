@@ -7,35 +7,22 @@ def largest_component_mask(
     threshold=130,
 ):
 
-    gray = cv2.cvtColor(
-        image,
-        cv2.COLOR_BGR2GRAY,
-    )
-
-    _, mask = cv2.threshold(
-        gray,
-        threshold,
-        255,
-        cv2.THRESH_BINARY,
-    )
-
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
-        mask,
+        image,
         connectivity=8,
     )
 
-    result = np.zeros_like(mask)
+    result = np.zeros_like(image)
 
-    if num_labels > 1:
+    for i in range(1, num_labels):
 
-        largest = 1 + np.argmax(
-            stats[1:, cv2.CC_STAT_AREA]
-        )
+        area = stats[i, cv2.CC_STAT_AREA]
 
-        result[labels == largest] = 255
+        if area >= threshold:
+
+            result[labels == i] = 255
 
     return result
-
 
 def process_largest_component(
     image,
