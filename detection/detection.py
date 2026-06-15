@@ -3,10 +3,17 @@ from .filter import process_morphology, process_largest_component
 
 def filter_kmeans_augmented(image, cluster):
 
-    lab, mask = process_bw(image.copy(), 130)
-    # kmeans, mask = process_kmeans(lab, cluster)
-    morph, _ = process_morphology(lab)
-    # larg, _ = process_largest_component(lab)
+    _, morph_mask = process_morphology(
+        image,
+        threshold=130,
+        kernel_size=7,
+    )
 
+    display, mask = process_kmeans(
+        image=image,          # ORIGINAL IMAGE
+        roi_mask=morph_mask,  # Morphology ROI
+        cluster=cluster,
+        K=4,
+    )
 
-    return morph, None
+    return display, mask

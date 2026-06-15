@@ -5,24 +5,34 @@ import numpy as np
 def morphology_mask(
     image,
     threshold=130,
-    kernel_size=10,
+    kernel_size=7,
+    inverse=False,
 ):
 
-    gray = cv2.cvtColor(
-        image,
-        cv2.COLOR_BGR2GRAY,
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(
+            image,
+            cv2.COLOR_BGR2GRAY,
+        )
+    else:
+        gray = image.copy()
+
+    thresh_type = (
+        cv2.THRESH_BINARY_INV
+        if inverse
+        else cv2.THRESH_BINARY
     )
 
     _, mask = cv2.threshold(
         gray,
         threshold,
         255,
-        cv2.THRESH_BINARY,
+        thresh_type,
     )
 
     kernel = np.ones(
         (kernel_size, kernel_size),
-        np.uint8,
+        dtype=np.uint8,
     )
 
     mask = cv2.morphologyEx(
@@ -37,25 +47,33 @@ def morphology_mask(
         kernel,
     )
 
-    return mask
+    return 255 - mask
 
 
 def process_morphology(
     image,
     threshold=130,
     kernel_size=7,
+    inverse=False,
 ):
 
     mask = morphology_mask(
-        image,
-        threshold,
-        kernel_size,
+        image=image,
+        threshold=threshold,
+        kernel_size=kernel_size,
+        inverse=inverse,
     )
 
-    display = cv2.bitwise_and(
-        image,
-        image,
-        mask=mask,
-    )
+    if len(image.shape) == 3:
+
+        display = cv2.bitwise_and(
+            image,
+            image,
+            mask=mask,
+        )
+
+    else:
+
+        display = mask.copy()
 
     return display, mask

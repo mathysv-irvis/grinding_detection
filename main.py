@@ -2,8 +2,9 @@ from detection import CameraSim, process_contrast, process_color, process_gradie
 
 
 MEDIA_PATH = "./ressources/top_view_depth_camera_camera_image_raw_20260610_174122"
+# MEDIA_PATH = "./ressources/Video_20260108_165858_967"
 CAMERA_VID = CameraSim(MEDIA_PATH+".mp4")
-CAMERA_PIC = CameraSim(MEDIA_PATH+".png")
+# CAMERA_PIC = CameraSim(MEDIA_PATH+".png")
 
 def filter_contrast():
 
@@ -45,7 +46,7 @@ def filter_kmeans():
 
     CAMERA_VID.run(
         process_kmeans,
-        cluster=2
+        cluster=5
     )
 
 def augmented_kmean():
