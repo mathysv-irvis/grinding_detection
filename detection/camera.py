@@ -1,7 +1,7 @@
 import cv2
 from abc import ABC, abstractmethod
 from pathlib import Path
-
+import threading
 
 class BaseCamera(ABC):
 
@@ -10,8 +10,18 @@ class BaseCamera(ABC):
         window_name="Camera",
         exit_keys=(27, ord("q")),
     ):
+
         self.window_name = window_name
         self.exit_keys = exit_keys
+
+        self.running = False
+        self.thread = None
+
+        self.frame = None
+        self.display = None
+        self.mask = None
+
+        self.lock = threading.Lock()
 
     @abstractmethod
     def open(self):
@@ -19,30 +29,24 @@ class BaseCamera(ABC):
 
     @abstractmethod
     def read(self):
-        """
-        Returns
-        -------
-        ok : bool
-        frame : np.ndarray | None
-        """
         pass
 
     @abstractmethod
     def release(self):
         pass
 
-    def run(
+    def _worker(
         self,
         process_frame=None,
         *args,
-        **kwargs
+        **kwargs,
     ):
 
         self.open()
 
         try:
 
-            while True:
+            while self.running:
 
                 ok, frame = self.read()
 
@@ -50,34 +54,111 @@ class BaseCamera(ABC):
                     break
 
                 if process_frame is not None:
-                    display, detection_mask = process_frame(
+                    display, mask = process_frame(
                         frame,
                         *args,
-                        **kwargs
+                        **kwargs,
                     )
                 else:
-                    display, detection_mask = frame.copy(), None
-
-
+                    display = frame.copy()
+                    mask = None
 
                 if display is None:
                     display = frame
 
-                cv2.imshow(
-                    self.window_name,
-                    display
-                )
+                with self.lock:
 
-                key = cv2.waitKey(1)
-
-                if key in self.exit_keys:
-                    break
+                    self.frame   = frame
+                    self.display = display
+                    self.mask    = mask
 
         finally:
 
             self.release()
-            cv2.destroyAllWindows()
+            self.running = False
 
+    def start(
+        self,
+        process_frame=None,
+        *args,
+        **kwargs,
+    ):
+
+        if self.running:
+            return
+
+        self.running = True
+
+        self.thread = threading.Thread(
+            target=self._worker,
+            args=(process_frame, *args),
+            kwargs=kwargs,
+            daemon=True,
+        )
+
+        self.thread.start()
+
+    def stop(self):
+
+        self.running = False
+
+        if self.thread is not None:
+            self.thread.join()
+
+    def get_frame(self):
+
+        with self.lock:
+
+            if self.frame is None:
+                return None
+
+            return self.frame.copy()
+
+    def get_display(self):
+
+        with self.lock:
+
+            if self.display is None:
+                return None
+
+            return self.display.copy()
+
+    def get_mask(self):
+
+        with self.lock:
+
+            if self.mask is None:
+                return None
+
+            return self.mask.copy()
+
+
+        if window_name is None:
+            window_name = self.window_name
+
+    def run(
+        self,
+        process_frame=None,
+        *args,
+        **kwargs,
+    ):
+
+        self.start(
+            process_frame=process_frame,
+            *args,
+            **kwargs,
+        )
+
+        try:
+
+            while self.running:
+
+                display = self.get_display()
+
+        finally:
+
+            self.stop()
+            cv2.destroyAllWindows()
 
 class CameraRunner(BaseCamera):
 
@@ -85,12 +166,10 @@ class CameraRunner(BaseCamera):
         self,
         camera_index=0,
         window_name="Camera",
-        exit_keys=(27, ord("q")),
     ):
 
         super().__init__(
             window_name=window_name,
-            exit_keys=exit_keys,
         )
 
         self.camera_index = camera_index
@@ -123,13 +202,11 @@ class CameraSim(BaseCamera):
         self,
         source,
         window_name="CameraSim",
-        exit_keys=(27, ord("q")),
         loop_video=True,
     ):
 
         super().__init__(
             window_name=window_name,
-            exit_keys=exit_keys,
         )
 
         if isinstance(source, str):
