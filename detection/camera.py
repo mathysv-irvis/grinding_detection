@@ -162,7 +162,7 @@ class CameraSim(BaseCamera):
             ".mp4",
         }
 
-        if not isinstance(self.is_image, int):
+        if not isinstance(self.source, int):
             self.is_image = (
                 self.source.suffix.lower() in image_extensions
             )
