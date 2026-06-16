@@ -132,15 +132,19 @@ class CameraSim(BaseCamera):
             exit_keys=exit_keys,
         )
 
-        self.source = Path(source)
-        self.loop_video = loop_video
+        if isinstance(source, str):
+            self.source = Path(source)
+            if not self.source.exists():
+                raise FileNotFoundError(self.source)
 
+        else:
+            self.source = int(source)
+
+        self.loop_video = loop_video
         self.cap = None
         self.image = None
         self.is_image = False
-
-        if not self.source.exists():
-            raise FileNotFoundError(self.source)
+        self.is_video = False
 
     def open(self):
 
@@ -154,9 +158,18 @@ class CameraSim(BaseCamera):
             ".webp",
         }
 
-        self.is_image = (
-            self.source.suffix.lower() in image_extensions
-        )
+        video_extensions = {
+            ".mp4",
+        }
+
+        if not isinstance(self.is_image, int):
+            self.is_image = (
+                self.source.suffix.lower() in image_extensions
+            )
+
+            self.is_video = (
+                self.source.suffix.lower() in video_extensions
+            )
 
         if self.is_image:
 
@@ -169,7 +182,7 @@ class CameraSim(BaseCamera):
                     f"Cannot read image {self.source}"
                 )
 
-        else:
+        elif self.is_video:
 
             self.cap = cv2.VideoCapture(
                 str(self.source)
@@ -178,6 +191,17 @@ class CameraSim(BaseCamera):
             if not self.cap.isOpened():
                 raise RuntimeError(
                     f"Cannot open video {self.source}"
+                )
+
+        else:
+
+            self.cap = cv2.VideoCapture(
+                int(self.source)
+            )
+
+            if not self.cap.isOpened():
+                raise RuntimeError(
+                    f"Cannot open camera {self.source}"
                 )
 
     def read(self):
