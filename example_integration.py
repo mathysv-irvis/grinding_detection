@@ -96,5 +96,5 @@ if __name__ == "__main__":
     vid = "./ressources/top_view_depth_camera_camera_image_raw_20260610_174122.mp4"
     cam = 0
 
-    path = vid
+    path = "./ressources/Image_20260108_165858_954.jpeg"
     process(path)
