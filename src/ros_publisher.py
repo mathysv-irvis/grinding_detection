@@ -1,3 +1,13 @@
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+
+sys.path.insert(
+    0,
+    str(ROOT / "grinding_detection" / "src")
+)
+
 from detection.detection import filter_kmeans_augmented
 from detection import CameraSim
 
@@ -123,7 +133,7 @@ class DetectionPublisher(Node):
 def main(args=None):
     rclpy.init()
 
-    source = "./ressources/top_view_depth_camera_camera_image_raw_20260610_174122.mp4"
+    source = 0
 
     node = DetectionPublisher(source)
 
