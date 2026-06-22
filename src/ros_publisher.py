@@ -1,15 +1,4 @@
-from pathlib import Path
-import sys
-
-ROOT = Path(__file__).resolve().parents[2]
-
-sys.path.insert(
-    0,
-    str(ROOT / "grinding_detection" / "src")
-)
-
-from detection.detection import filter_kmeans_augmented
-from detection import CameraSim
+from .detection import CameraSim. filter_kmeans_augmented
 
 from std_msgs.msg import UInt8MultiArray, MultiArrayDimension
 from sensor_msgs.msg import Image
