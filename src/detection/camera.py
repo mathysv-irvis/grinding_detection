@@ -315,7 +315,7 @@ class CameraSim(BaseCamera):
         if self.cap is not None:
             self.cap.release()
 
-class CameraROS
+class CameraROS:
 
     def __init__(
         self,
