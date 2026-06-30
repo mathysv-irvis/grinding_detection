@@ -1,25 +1,33 @@
 import cv2
+import time
+import threading
+
 from abc import ABC, abstractmethod
 from pathlib import Path
-import threading
+
+import rclpy
+from rclpy.node import Node
+
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
 
 class BaseCamera(ABC):
 
     def __init__(
         self,
-        window_name="Camera",
-        exit_keys=(27, ord("q")),
+        window_name = "Camera",
+        exit_keys   = (27, ord("q")),
     ):
 
         self.window_name = window_name
-        self.exit_keys = exit_keys
+        self.exit_keys   = exit_keys
 
         self.running = False
-        self.thread = None
+        self.thread  = None
 
-        self.frame = None
+        self.frame   = None
         self.display = None
-        self.mask = None
+        self.mask    = None
 
         self.lock = threading.Lock()
 
@@ -37,7 +45,7 @@ class BaseCamera(ABC):
 
     def _worker(
         self,
-        process_frame=None,
+        process_frame = None,
         *args,
         **kwargs,
     ):
@@ -79,7 +87,7 @@ class BaseCamera(ABC):
 
     def start(
         self,
-        process_frame=None,
+        process_frame = None,
         *args,
         **kwargs,
     ):
@@ -90,10 +98,10 @@ class BaseCamera(ABC):
         self.running = True
 
         self.thread = threading.Thread(
-            target=self._worker,
-            args=(process_frame, *args),
-            kwargs=kwargs,
-            daemon=True,
+            target = self._worker,
+            args   = (process_frame, *args),
+            kwargs = kwargs,
+            daemon = True,
         )
 
         self.thread.start()
@@ -138,13 +146,13 @@ class BaseCamera(ABC):
 
     def run(
         self,
-        process_frame=None,
+        process_frame = None,
         *args,
         **kwargs,
     ):
 
         self.start(
-            process_frame=process_frame,
+            process_frame = process_frame,
             *args,
             **kwargs,
         )
@@ -164,16 +172,16 @@ class CameraRunner(BaseCamera):
 
     def __init__(
         self,
-        camera_index=0,
-        window_name="Camera",
+        camera_index = 0,
+        window_name  = "Camera",
     ):
 
         super().__init__(
-            window_name=window_name,
+            window_name = window_name,
         )
 
         self.camera_index = camera_index
-        self.cap = None
+        self.cap          = None
 
     def open(self):
 
@@ -201,12 +209,12 @@ class CameraSim(BaseCamera):
     def __init__(
         self,
         source,
-        window_name="CameraSim",
-        loop_video=True,
+        window_name = "CameraSim",
+        loop_video  = True,
     ):
 
         super().__init__(
-            window_name=window_name,
+            window_name = window_name,
         )
 
         if isinstance(source, str):
@@ -218,10 +226,10 @@ class CameraSim(BaseCamera):
             self.source = int(source)
 
         self.loop_video = loop_video
-        self.cap = None
-        self.image = None
-        self.is_image = False
-        self.is_video = False
+        self.cap        = None
+        self.image      = None
+        self.is_image   = False
+        self.is_video   = False
 
     def open(self):
 
@@ -306,3 +314,72 @@ class CameraSim(BaseCamera):
 
         if self.cap is not None:
             self.cap.release()
+
+class CameraROS:
+
+    def __init__(
+        self,
+        topic       = "/camera/image_raw",
+        node_name   = "camera_ros",
+        window_name = "CameraROS",
+    ):
+
+        super().__init__(
+            window_name = window_name,
+        )
+
+        self.topic  = topic
+        self.bridge = CvBridge()
+
+        self.latest_frame = None
+        self.frame_lock   = threading.Lock()
+
+        if not rclpy.ok():
+            rclpy.init()
+
+        self.node = Node(node_name)
+
+        self.subscription = (
+            self.node.create_subscription(
+                Image,
+                self.topic,
+                self.image_callback,
+                10,
+            )
+        )
+
+        self.spin_thread = threading.Thread(
+            target = rclpy.spin,
+            args   = (self.node,),
+            daemon = True,
+        )
+
+    def image_callback(self, msg):
+
+        frame = self.bridge.imgmsg_to_cv2(
+            msg,
+            desired_encoding="bgr8",
+        )
+
+        with self.frame_lock:
+            self.latest_frame = frame
+
+    def open(self):
+
+        self.spin_thread.start()
+
+    def read(self):
+
+        with self.frame_lock:
+
+            if self.latest_frame is None:
+                return False, None
+
+            return (
+                True,
+                self.latest_frame.copy(),
+            )
+
+    def release(self):
+
+        self.node.destroy_node()

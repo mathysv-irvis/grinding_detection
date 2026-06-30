@@ -1,5 +1,5 @@
-from detection.detection import filter_kmeans_augmented
-from detection import CameraSim
+from src.detection import filter_kmeans_augmented
+from src.detection import CameraSim
 import numpy as np
 import time
 import cv2
@@ -30,6 +30,15 @@ def triple_layout(mask, disp, frame):
         w = int(img.shape[1] * scale)
 
         img = cv2.resize(img, (w, h))
+
+        if name == "mask":
+            max_label = img.max()
+
+            if max_label > 0:
+                img = (img.astype(np.float32) * (255.0 / max_label)).astype(np.uint8)
+            else:
+                img = img.astype(np.uint8)
+
 
         cv2.putText(
             img,
@@ -96,5 +105,5 @@ if __name__ == "__main__":
     vid = "./ressources/top_view_depth_camera_camera_image_raw_20260610_174122.mp4"
     cam = 0
 
-    path = "./ressources/Image_20260108_165858_954.jpeg"
+    path = vid
     process(path)
