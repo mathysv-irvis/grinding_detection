@@ -1,4 +1,4 @@
-from .detection import CameraSim. filter_kmeans_augmented
+from detection import CameraSim, filter_kmeans_augmented
 
 from std_msgs.msg import UInt8MultiArray, MultiArrayDimension
 from sensor_msgs.msg import Image
@@ -33,7 +33,13 @@ class DetectionPublisher(Node):
 
         self.publisher_mask = self.create_publisher(
             UInt8MultiArray,
-            "detection/mask",
+            "/detection/mask",
+            10,
+        )
+
+        self.publisher_mask_image = self.create_publisher(
+            Image,
+            "/detection/mask_image",
             10,
         )
 
@@ -80,6 +86,29 @@ class DetectionPublisher(Node):
 
         return
 
+    def publish_mask_image(self, stamp):
+        frame = self.cam.get_mask()
+        if frame is None:
+            return
+
+        frame = frame.astype(np.uint8)
+
+        max_label = frame.max()
+
+        if max_label > 0:
+            display = (frame.astype(np.float32) * (255.0 / max_label)).astype(np.uint8)
+        else:
+            display = frame.astype(np.uint8)
+
+        msg_frame = self.bridge.cv2_to_imgmsg(
+            display,
+            encoding="mono8",
+        )
+        msg_frame.header.stamp = stamp
+        self.publisher_mask_image.publish(msg_frame)
+
+        return
+
     def publish_mask(self, stamp):
         mask = self.cam.get_mask()
         if mask is None:
@@ -114,6 +143,7 @@ class DetectionPublisher(Node):
         self.publish_plate_contour(stamp)
         self.publish_cam(stamp)
         self.publish_mask(stamp)
+        self.publish_mask_image(stamp)
 
     def destroy_node(self):
         self.cam.stop()
@@ -122,7 +152,7 @@ class DetectionPublisher(Node):
 def main(args=None):
     rclpy.init()
 
-    source = 0
+    source = "./video.mp4"
 
     node = DetectionPublisher(source)
 
