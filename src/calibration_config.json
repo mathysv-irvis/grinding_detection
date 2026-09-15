@@ -1,0 +1,7 @@
+{
+    "intensity": 47,
+    "K": 7,
+    "max_component": 100,
+    "threshold": 255,
+    "kernel_size": 31
+}

@@ -3,17 +3,14 @@ from .filter import process_morphology, process_largest_component
 import numpy as np
 import cv2
 
+
 def extract_label_polygons(labels, num_labels):
     polygons = []
 
     for label_id in range(1, num_labels):
         mask = (labels == label_id).astype(np.uint8) * 255
 
-        contours, _ = cv2.findContours(
-            mask,
-            cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         for cnt in contours:
             if cv2.contourArea(cnt) < 10:
@@ -22,12 +19,10 @@ def extract_label_polygons(labels, num_labels):
             epsilon = 0.01 * cv2.arcLength(cnt, True)
             approx = cv2.approxPolyDP(cnt, epsilon, True)
 
-            polygons.append({
-                "label": label_id,
-                "polygon": approx.reshape(-1, 2)
-            })
+            polygons.append({"label": label_id, "polygon": approx.reshape(-1, 2)})
 
     return polygons
+
 
 def polygons_mask(polygons, image_shape):
     h, w = image_shape[:2]
@@ -41,6 +36,7 @@ def polygons_mask(polygons, image_shape):
         cv2.fillPoly(mask, [poly], label)
 
     return mask
+
 
 def polygon_frame(image, polygons, thickness=2):
     output = image.copy()
@@ -63,8 +59,44 @@ def polygon_frame(image, polygons, thickness=2):
 
     return output
 
-def filter_kmeans_augmented(image, cluster, K, max_component, threshold=130, kernel_size=7):
 
+def select_intensity_cluster(image, labels, K, target_intensity):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    cluster_intensities = []
+
+    for cluster_id in range(K):
+        pixels = gray[labels == cluster_id]
+
+        if len(pixels) == 0:
+            cluster_intensities.append(None)
+            continue
+
+        cluster_intensities.append(float(np.mean(pixels)))
+
+    valid_clusters = [
+        i for i, intensity in enumerate(cluster_intensities) if intensity is not None
+    ]
+
+    if not valid_clusters:
+        return None, cluster_intensities
+
+    selected_cluster = min(
+        valid_clusters,
+        key=lambda i: abs(cluster_intensities[i] - target_intensity),
+    )
+
+    return selected_cluster, cluster_intensities
+
+
+def filter_kmeans_augmented(
+    image,
+    intensity,
+    K,
+    max_component,
+    threshold=130,
+    kernel_size=7,
+):
     _, morph_mask = process_morphology(
         image,
         threshold=threshold,
@@ -74,25 +106,46 @@ def filter_kmeans_augmented(image, cluster, K, max_component, threshold=130, ker
     kmean, mask = process_kmeans(
         image=image,
         roi_mask=morph_mask,
-        cluster=cluster,
+        intensity=intensity,
         K=K,
     )
 
-    disp_postproc, mask_postproc = process_largest_component(mask, threshold=max_component)
-
+    _, mask_postproc = process_largest_component(
+        mask,
+        threshold=max_component,
+    )
 
     display = cv2.bitwise_and(
         image,
         image,
-        mask=mask_postproc,
+        mask=morph_mask,
     )
 
-    num_labels, labels = cv2.connectedComponents(mask_postproc)
+    num_labels, labels = cv2.connectedComponents(
+        mask_postproc,
+    )
 
-    polygons = extract_label_polygons(labels, num_labels)
+    polygons = extract_label_polygons(
+        labels,
+        num_labels,
+    )
 
-    poly_mask = polygons_mask(polygons, image.shape)
+    poly_mask = polygons_mask(
+        polygons,
+        image.shape,
+    )
 
-    overlay = polygon_frame(display, polygons)
-    result = cv2.addWeighted(image, 0.3, overlay, 0.7, 0)
+    overlay = polygon_frame(
+        display,
+        polygons,
+    )
+
+    result = cv2.addWeighted(
+        image,
+        0.3,
+        overlay,
+        0.7,
+        0,
+    )
+
     return result, poly_mask
