@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from detection import CameraSim, filter_kmeans_augmented
 
 from std_msgs.msg import UInt8MultiArray, MultiArrayDimension
@@ -5,19 +6,31 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
 from rclpy.node import Node
+=======
+import numpy as np
+>>>>>>> v1.1.0-deployment
 import rclpy
 
-import numpy as np
-import cv2
-import time
+from rclpy.node import Node
+
+from sensor_msgs.msg import Image
+from std_msgs.msg import UInt8MultiArray, MultiArrayDimension
+
+from cv_bridge import CvBridge
+
+from detection import (
+    CameraSim,
+    filter_kmeans_augmented,
+)
+
+from calibration_config import load_values
 
 
 class DetectionPublisher(Node):
-
     def __init__(self, source):
         super().__init__("plate_contour_detection")
 
-        self.bridge    = CvBridge()
+        self.bridge = CvBridge()
 
         self.publisher_plate_contour = self.create_publisher(
             Image,
@@ -44,48 +57,57 @@ class DetectionPublisher(Node):
         )
 
         self.cam = CameraSim(source)
-        self.cam.start(
-            filter_kmeans_augmented,
-            cluster = 1,
-            K       = 4,
-            max_component = 1400,
-        )
 
-        time.sleep(1)
+        self.cam.start(
+            self.filter_live,
+        )
 
         self.timer = self.create_timer(
             1 / 30,
             self.timer_callback,
         )
 
+    def filter_live(self, image, **kwargs):
+        params = load_values()
+
+        return filter_kmeans_augmented(
+            image=image,
+            intensity=params["intensity"],
+            K=params["K"],
+            max_component=params["max_component"],
+            threshold=params["threshold"],
+            kernel_size=params["kernel_size"],
+        )
+
     def publish_cam(self, stamp):
         frame = self.cam.get_frame()
+
         if frame is None:
             return
 
-        msg_frame = self.bridge.cv2_to_imgmsg(
+        msg = self.bridge.cv2_to_imgmsg(
             frame,
             encoding="bgr8",
         )
-        msg_frame.header.stamp = stamp
-        self.publisher_cam.publish(msg_frame)
 
-        return
+        msg.header.stamp = stamp
+
+        self.publisher_cam.publish(msg)
 
     def publish_plate_contour(self, stamp):
-        disp = self.cam.get_display()
-        if disp is None:
+        display = self.cam.get_display()
+
+        if display is None:
             return
 
-        msg_disp = self.bridge.cv2_to_imgmsg(
-            disp,
+        msg = self.bridge.cv2_to_imgmsg(
+            display,
             encoding="bgr8",
         )
-        msg_disp.header.stamp = stamp
-        self.publisher_plate_contour.publish(msg_disp)
 
-        return
+        msg.header.stamp = stamp
 
+<<<<<<< HEAD
     def publish_mask_image(self, stamp):
         frame = self.cam.get_mask()
         if frame is None:
@@ -110,14 +132,45 @@ class DetectionPublisher(Node):
         return
 
     def publish_mask(self, stamp):
+=======
+        self.publisher_plate_contour.publish(msg)
+
+    def publish_mask_image(self, stamp):
+>>>>>>> v1.1.0-deployment
         mask = self.cam.get_mask()
+
+        if mask is None:
+            return
+
+        mask = mask.astype(np.uint8)
+
+        max_label = mask.max()
+
+        if max_label > 0:
+            display = (mask.astype(np.float32) * (255.0 / max_label)).astype(np.uint8)
+        else:
+            display = mask
+
+        msg = self.bridge.cv2_to_imgmsg(
+            display,
+            encoding="mono8",
+        )
+
+        msg.header.stamp = stamp
+
+        self.publisher_mask_image.publish(msg)
+
+    def publish_mask(self):
+        mask = self.cam.get_mask()
+
         if mask is None:
             return
 
         binary = (mask > 0).astype(np.uint8)
 
-        msg_mask = UInt8MultiArray()
-        msg_mask.layout.dim = [
+        msg = UInt8MultiArray()
+
+        msg.layout.dim = [
             MultiArrayDimension(
                 label="height",
                 size=binary.shape[0],
@@ -129,15 +182,12 @@ class DetectionPublisher(Node):
                 stride=binary.shape[1],
             ),
         ]
-        msg_mask.data = binary.flatten().tolist()
 
-        self.publisher_mask.publish(msg_mask)
+        msg.data = binary.flatten().tolist()
 
-        return
+        self.publisher_mask.publish(msg)
 
     def timer_callback(self):
-
-
         stamp = self.get_clock().now().to_msg()
 
         self.publish_plate_contour(stamp)
@@ -149,21 +199,30 @@ class DetectionPublisher(Node):
         self.cam.stop()
         super().destroy_node()
 
-def main(args=None):
-    rclpy.init()
 
+<<<<<<< HEAD
     source = "./video.mp4"
+=======
+def main(args=None):
+    rclpy.init(args=args)
+
+    source = "./plate_dataset/image_00024.jpg"
+>>>>>>> v1.1.0-deployment
 
     node = DetectionPublisher(source)
 
     try:
         rclpy.spin(node)
+
     except KeyboardInterrupt:
         pass
 
-    node.destroy_node()
-    rclpy.shutdown()
+    finally:
+        node.destroy_node()
+
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

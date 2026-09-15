@@ -5,12 +5,10 @@ import numpy as np
 def kmeans_mask(
     image,
     roi_mask,
-    cluster=0,
-    K=3,
+    intensity=40,
+    K=4,
     kernel_size=5,
 ):
-
-    # Extract only ROI pixels
     pixels = image[roi_mask == 255]
 
     if pixels.size == 0:
@@ -22,8 +20,7 @@ def kmeans_mask(
     pixels = np.float32(pixels)
 
     criteria = (
-        cv2.TERM_CRITERIA_EPS +
-        cv2.TERM_CRITERIA_MAX_ITER,
+        cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,
         20,
         1.0,
     )
@@ -39,38 +36,32 @@ def kmeans_mask(
 
     labels = labels.flatten()
 
-    # -------------------------------
-    # Sort clusters by brightness
-    # so cluster indices stay stable
-    # -------------------------------
+    # ----------------------------------------
+    # Calculate grayscale intensity of clusters
+    # ----------------------------------------
 
-    order = np.argsort(
-        centers.mean(axis=1)
-    )
+    cluster_intensities = np.mean(centers, axis=1)
 
-    new_labels = np.zeros_like(labels)
+    # ----------------------------------------
+    # Select cluster closest to target intensity
+    # ----------------------------------------
 
-    for new_id, old_id in enumerate(order):
-        new_labels[labels == old_id] = new_id
+    selected_cluster = int(np.argmin(np.abs(cluster_intensities - intensity)))
 
-    labels = new_labels
-
-    # -------------------------------
+    # ----------------------------------------
     # Reconstruct full-size mask
-    # -------------------------------
+    # ----------------------------------------
 
     mask = np.zeros(
         image.shape[:2],
         dtype=np.uint8,
     )
 
-    mask[roi_mask == 255] = (
-        labels == cluster
-    ).astype(np.uint8) * 255
+    mask[roi_mask == 255] = (labels == selected_cluster).astype(np.uint8) * 255
 
-    # -------------------------------
+    # ----------------------------------------
     # Clean mask
-    # -------------------------------
+    # ----------------------------------------
 
     kernel = np.ones(
         (kernel_size, kernel_size),
@@ -95,15 +86,15 @@ def kmeans_mask(
 def process_kmeans(
     image,
     roi_mask,
-    cluster=0,
-    K=3,
+    intensity=40,
+    K=4,
     kernel_size=5,
 ):
 
     mask = kmeans_mask(
         image=image,
         roi_mask=roi_mask,
-        cluster=cluster,
+        intensity=intensity,
         K=K,
         kernel_size=kernel_size,
     )
