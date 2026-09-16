@@ -1,14 +1,4 @@
-<<<<<<< HEAD
-from detection import CameraSim, filter_kmeans_augmented
-
-from std_msgs.msg import UInt8MultiArray, MultiArrayDimension
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
-
-from rclpy.node import Node
-=======
 import numpy as np
->>>>>>> v1.1.0-deployment
 import rclpy
 
 from rclpy.node import Node
@@ -107,36 +97,9 @@ class DetectionPublisher(Node):
 
         msg.header.stamp = stamp
 
-<<<<<<< HEAD
-    def publish_mask_image(self, stamp):
-        frame = self.cam.get_mask()
-        if frame is None:
-            return
-
-        frame = frame.astype(np.uint8)
-
-        max_label = frame.max()
-
-        if max_label > 0:
-            display = (frame.astype(np.float32) * (255.0 / max_label)).astype(np.uint8)
-        else:
-            display = frame.astype(np.uint8)
-
-        msg_frame = self.bridge.cv2_to_imgmsg(
-            display,
-            encoding="mono8",
-        )
-        msg_frame.header.stamp = stamp
-        self.publisher_mask_image.publish(msg_frame)
-
-        return
-
-    def publish_mask(self, stamp):
-=======
         self.publisher_plate_contour.publish(msg)
 
     def publish_mask_image(self, stamp):
->>>>>>> v1.1.0-deployment
         mask = self.cam.get_mask()
 
         if mask is None:
@@ -160,7 +123,7 @@ class DetectionPublisher(Node):
 
         self.publisher_mask_image.publish(msg)
 
-    def publish_mask(self):
+    def publish_mask(self, stamp):
         mask = self.cam.get_mask()
 
         if mask is None:
@@ -200,14 +163,10 @@ class DetectionPublisher(Node):
         super().destroy_node()
 
 
-<<<<<<< HEAD
-    source = "./video.mp4"
-=======
 def main(args=None):
     rclpy.init(args=args)
 
     source = "./plate_dataset/image_00024.jpg"
->>>>>>> v1.1.0-deployment
 
     node = DetectionPublisher(source)
 
