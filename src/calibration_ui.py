@@ -15,7 +15,7 @@ PARAMETERS = {
         "resolution": 1,
     },
     "max_component": {
-        "min": 100,
+        "min": 10,
         "max": 10000,
         "resolution": 100,
     },
