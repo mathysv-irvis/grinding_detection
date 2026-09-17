@@ -1,33 +1,27 @@
 import tkinter as tk
 
-from calibration_config import load_values, save_values
+from calibration_config import (
+    DEFAULT_VALUES,
+    load_values,
+    save_values,
+)
 
 
 PARAMETERS = {
-    "intensity": {
+    "merge_distance": {
+        "min": 0,
+        "max": 50,
+        "resolution": 1,
+    },
+    "intensity_min": {
         "min": 0,
         "max": 255,
         "resolution": 1,
     },
-    "K": {
-        "min": 2,
-        "max": 10,
-        "resolution": 1,
-    },
-    "max_component": {
-        "min": 10,
-        "max": 10000,
-        "resolution": 100,
-    },
-    "threshold": {
+    "intensity_max": {
         "min": 0,
         "max": 255,
         "resolution": 1,
-    },
-    "kernel_size": {
-        "min": 1,
-        "max": 31,
-        "resolution": 2,
     },
 }
 
@@ -41,6 +35,7 @@ class CalibrationUI:
 
         self.values = load_values()
         self.variables = {}
+        self.labels = {}
 
         self.create_ui()
 
@@ -57,13 +52,13 @@ class CalibrationUI:
             tk.Label(
                 frame,
                 text=name,
-                width=16,
+                width=18,
                 anchor="w",
             ).grid(
                 row=row,
                 column=0,
                 padx=(0, 8),
-                pady=3,
+                pady=4,
             )
 
             variable = tk.IntVar(value=self.values[name])
@@ -77,18 +72,15 @@ class CalibrationUI:
                 to=config["max"],
                 resolution=config["resolution"],
                 orient=tk.HORIZONTAL,
-                length=220,
+                length=250,
                 showvalue=False,
-                command=lambda value, n=name: self.slider_changed(
-                    n,
-                    value,
-                ),
+                command=lambda value, n=name: self.slider_changed(n, value),
             )
 
             scale.grid(
                 row=row,
                 column=1,
-                pady=3,
+                pady=4,
             )
 
             value_label = tk.Label(
@@ -104,11 +96,7 @@ class CalibrationUI:
                 padx=(8, 0),
             )
 
-            setattr(
-                self,
-                f"{name}_label",
-                value_label,
-            )
+            self.labels[name] = value_label
 
         tk.Button(
             frame,
@@ -119,46 +107,31 @@ class CalibrationUI:
             row=len(PARAMETERS),
             column=0,
             columnspan=3,
-            pady=(10, 0),
+            pady=(12, 0),
         )
 
-    def slider_changed(self, name, value):
+    def slider_changed(
+        self,
+        name,
+        value,
+    ):
         value = int(float(value))
-
-        if name == "kernel_size":
-            if value % 2 == 0:
-                value += 1
-
-            value = min(value, 31)
-
-            self.variables[name].set(value)
 
         self.values[name] = value
 
-        label = getattr(
-            self,
-            f"{name}_label",
-        )
-
-        label.config(text=str(value))
+        self.labels[name].config(text=str(value))
 
         save_values(self.values)
 
     def reset(self):
-        self.values = load_values()
+        self.values = DEFAULT_VALUES.copy()
 
         for name, value in self.values.items():
-            if name not in self.variables:
-                continue
-
             self.variables[name].set(value)
 
-            label = getattr(
-                self,
-                f"{name}_label",
-            )
+            self.labels[name].config(text=str(value))
 
-            label.config(text=str(value))
+        save_values(self.values)
 
 
 def main():

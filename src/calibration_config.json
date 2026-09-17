@@ -1,7 +1,5 @@
 {
-    "intensity": 47,
-    "K": 7,
-    "max_component": 100,
-    "threshold": 255,
-    "kernel_size": 31
+    "merge_distance": 7,
+    "intensity_min": 70,
+    "intensity_max": 100
 }

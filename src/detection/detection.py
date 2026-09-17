@@ -1,8 +1,63 @@
-from .filter import process_kmeans
-from .filter import process_morphology, process_largest_component
-
 import cv2
 import numpy as np
+
+
+def create_intensity_mask(
+    image,
+    intensity_min,
+    intensity_max,
+):
+    gray = cv2.cvtColor(
+        image,
+        cv2.COLOR_BGR2GRAY,
+    )
+
+    intensity_min = int(np.clip(intensity_min, 0, 255))
+
+    intensity_max = int(np.clip(intensity_max, 0, 255))
+
+    if intensity_min > intensity_max:
+        intensity_min, intensity_max = (
+            intensity_max,
+            intensity_min,
+        )
+
+    mask = cv2.inRange(
+        gray,
+        intensity_min,
+        intensity_max,
+    )
+
+    return mask
+
+
+def merge_regions(
+    mask,
+    merge_distance,
+):
+    merge_distance = max(
+        0,
+        int(merge_distance),
+    )
+
+    if merge_distance == 0:
+        return mask
+
+    kernel_size = (merge_distance * 2) + 1
+
+    kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (
+            kernel_size,
+            kernel_size,
+        ),
+    )
+
+    return cv2.morphologyEx(
+        mask,
+        cv2.MORPH_CLOSE,
+        kernel,
+    )
 
 
 def extract_label_polygons(
@@ -11,7 +66,10 @@ def extract_label_polygons(
 ):
     polygons = []
 
-    for label_id in range(1, num_labels):
+    for label_id in range(
+        1,
+        num_labels,
+    ):
         mask = (labels == label_id).astype(np.uint8) * 255
 
         contours, _ = cv2.findContours(
@@ -21,10 +79,15 @@ def extract_label_polygons(
         )
 
         for cnt in contours:
-            if cv2.contourArea(cnt) < 10:
+            area = cv2.contourArea(cnt)
+
+            if area < 1:
                 continue
 
-            epsilon = 0.01 * cv2.arcLength(cnt, True)
+            epsilon = 0.01 * cv2.arcLength(
+                cnt,
+                True,
+            )
 
             approx = cv2.approxPolyDP(
                 cnt,
@@ -35,7 +98,11 @@ def extract_label_polygons(
             polygons.append(
                 {
                     "label": label_id,
-                    "polygon": approx.reshape(-1, 2),
+                    "area": area,
+                    "polygon": approx.reshape(
+                        -1,
+                        2,
+                    ),
                 }
             )
 
@@ -100,80 +167,25 @@ def polygon_frame(
     return output
 
 
-def select_intensity_cluster(
+def filter_intensity_range(
     image,
-    labels,
-    K,
-    target_intensity,
+    intensity_min,
+    intensity_max,
+    merge_distance,
 ):
-    gray = cv2.cvtColor(
+    intensity_mask = create_intensity_mask(
         image,
-        cv2.COLOR_BGR2GRAY,
+        intensity_min,
+        intensity_max,
     )
 
-    cluster_intensities = []
-
-    for cluster_id in range(K):
-        pixels = gray[labels == cluster_id]
-
-        if len(pixels) == 0:
-            cluster_intensities.append(None)
-            continue
-
-        cluster_intensities.append(float(np.mean(pixels)))
-
-    valid_clusters = [
-        i for i, intensity in enumerate(cluster_intensities) if intensity is not None
-    ]
-
-    if not valid_clusters:
-        return None, cluster_intensities
-
-    selected_cluster = min(
-        valid_clusters,
-        key=lambda i: abs(cluster_intensities[i] - target_intensity),
-    )
-
-    return (
-        selected_cluster,
-        cluster_intensities,
-    )
-
-
-def filter_kmeans_augmented(
-    image,
-    intensity,
-    K,
-    max_component,
-    threshold=130,
-    kernel_size=7,
-):
-    _, morph_mask = process_morphology(
-        image,
-        threshold=threshold,
-        kernel_size=kernel_size,
-    )
-
-    kmean, mask = process_kmeans(
-        image=image,
-        roi_mask=morph_mask,
-        intensity=intensity,
-        K=K,
-    )
-
-    _, mask_postproc = process_largest_component(
-        mask,
-        threshold=max_component,
-    )
-
-    display = cv2.bitwise_and(
-        image,
-        image,
-        mask=morph_mask,
+    merged_mask = merge_regions(
+        intensity_mask,
+        merge_distance,
     )
 
     num_labels, labels = cv2.connectedComponents(
-        mask_postproc,
+        merged_mask,
     )
 
     polygons = extract_label_polygons(
@@ -187,7 +199,7 @@ def filter_kmeans_augmented(
     )
 
     overlay = polygon_frame(
-        display,
+        image,
         polygons,
     )
 
@@ -199,4 +211,8 @@ def filter_kmeans_augmented(
         0,
     )
 
-    return result, poly_mask
+    return (
+        result,
+        poly_mask,
+        intensity_mask,
+    )

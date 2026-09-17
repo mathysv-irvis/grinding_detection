@@ -10,7 +10,7 @@ from cv_bridge import CvBridge
 
 from detection import (
     CameraSim,
-    filter_kmeans_augmented,
+    filter_intensity_range,
 )
 
 from calibration_config import load_values
@@ -53,23 +53,30 @@ class DetectionPublisher(Node):
         )
 
         self.timer = self.create_timer(
-            1 / 30,
+            1.0 / 30.0,
             self.timer_callback,
         )
 
-    def filter_live(self, image, **kwargs):
+    def filter_live(
+        self,
+        image,
+        **kwargs,
+    ):
         params = load_values()
 
-        return filter_kmeans_augmented(
+        result, poly_mask, _ = filter_intensity_range(
             image=image,
-            intensity=params["intensity"],
-            K=params["K"],
-            max_component=params["max_component"],
-            threshold=params["threshold"],
-            kernel_size=params["kernel_size"],
+            intensity_min=params["intensity_min"],
+            intensity_max=params["intensity_max"],
+            merge_distance=params["merge_distance"],
         )
 
-    def publish_cam(self, stamp):
+        return result, poly_mask
+
+    def publish_cam(
+        self,
+        stamp,
+    ):
         frame = self.cam.get_frame()
 
         if frame is None:
@@ -84,7 +91,10 @@ class DetectionPublisher(Node):
 
         self.publisher_cam.publish(msg)
 
-    def publish_plate_contour(self, stamp):
+    def publish_plate_contour(
+        self,
+        stamp,
+    ):
         display = self.cam.get_display()
 
         if display is None:
@@ -99,20 +109,26 @@ class DetectionPublisher(Node):
 
         self.publisher_plate_contour.publish(msg)
 
-    def publish_mask_image(self, stamp):
+    def publish_mask_image(
+        self,
+        stamp,
+    ):
         mask = self.cam.get_mask()
 
         if mask is None:
             return
 
-        mask = mask.astype(np.uint8)
+        mask = mask.astype(np.uint16)
 
         max_label = mask.max()
 
         if max_label > 0:
             display = (mask.astype(np.float32) * (255.0 / max_label)).astype(np.uint8)
         else:
-            display = mask
+            display = np.zeros(
+                mask.shape,
+                dtype=np.uint8,
+            )
 
         msg = self.bridge.cv2_to_imgmsg(
             display,
@@ -123,7 +139,10 @@ class DetectionPublisher(Node):
 
         self.publisher_mask_image.publish(msg)
 
-    def publish_mask(self, stamp):
+    def publish_mask(
+        self,
+        stamp,
+    ):
         mask = self.cam.get_mask()
 
         if mask is None:
@@ -137,7 +156,7 @@ class DetectionPublisher(Node):
             MultiArrayDimension(
                 label="height",
                 size=binary.shape[0],
-                stride=binary.shape[0] * binary.shape[1],
+                stride=(binary.shape[0] * binary.shape[1]),
             ),
             MultiArrayDimension(
                 label="width",
@@ -154,12 +173,16 @@ class DetectionPublisher(Node):
         stamp = self.get_clock().now().to_msg()
 
         self.publish_plate_contour(stamp)
+
         self.publish_cam(stamp)
+
         self.publish_mask(stamp)
+
         self.publish_mask_image(stamp)
 
     def destroy_node(self):
         self.cam.stop()
+
         super().destroy_node()
 
 
