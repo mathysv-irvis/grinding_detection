@@ -406,10 +406,7 @@ class DetectionPublisher(Node):
 
         self.publisher_plate_contour.publish(msg)
 
-    def publish_mask_image(
-        self,
-        stamp,
-    ):
+    def publish_mask_image(self, stamp):
         mask = self.cam.get_mask()
 
         if mask is None:
@@ -428,6 +425,7 @@ class DetectionPublisher(Node):
 
     def publish_mask(
         self,
+        stamp,
     ):
         mask = self.cam.get_mask()
 
