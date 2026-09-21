@@ -1,5 +1,8 @@
 {
+    "plate_margin": 25,
+    "intensity_min": 0,
+    "intensity_max": 90,
     "merge_distance": 7,
-    "intensity_min": 70,
-    "intensity_max": 100
+    "detection_mode": "contrast",
+    "contrast_threshold": 5
 }

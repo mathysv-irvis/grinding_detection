@@ -1,31 +1,27 @@
-from .camera import CameraSim, CameraRunner, CameraROS
-from .filter import (
-    process_contrast,
-    process_color,
-    process_gradient,
-    process_background,
-    process_contour,
-    process_lab,
-    process_kmeans,
-    process_bw,
-    process_morphology,
-    process_largest_component,
+from .camera import (
+    BaseCamera,
+    CameraRunner,
+    CameraSim,
+    CameraROS,
 )
-from .detection import filter_intensity_range
 
-__all__ = [
-    "CameraRunner",
-    "CameraSim",
-    "CameraROS",
-    "process_contrast",
-    "process_color",
-    "process_gradient",
-    "process_background",
-    "process_contour",
-    "process_lab",
-    "process_kmeans",
-    "process_bw",
-    "process_morphology",
-    "process_largest_component",
-    "filter_intensity_range",
-]
+from .plate import (
+    detect_plate,
+    crop_plate,
+)
+
+from .paint import (
+    create_intensity_mask,
+    merge_regions,
+    extract_paint_regions,
+    polygons_mask,
+    detect_paint,
+)
+
+from .visualization import (
+    draw_plate,
+    draw_plate_roi,
+    draw_paint_regions,
+    draw_paint_mask,
+    create_debug_view,
+)

@@ -7,16 +7,18 @@ CONFIG_PATH = Path(__file__).parent / "calibration_config.json"
 
 
 DEFAULT_VALUES = {
-    "merge_distance": 5,
+    "plate_margin": 20,
     "intensity_min": 20,
     "intensity_max": 80,
+    "merge_distance": 0,
+    "detection_mode": "intensity",
+    "contrast_threshold": 25,
 }
 
 
 def load_values():
     if not CONFIG_PATH.exists():
         save_values(DEFAULT_VALUES)
-
         return DEFAULT_VALUES.copy()
 
     try:
@@ -29,6 +31,7 @@ def load_values():
     except (
         json.JSONDecodeError,
         OSError,
+        TypeError,
     ):
         return DEFAULT_VALUES.copy()
 
@@ -42,7 +45,11 @@ def load_values():
 
 
 def save_values(values):
-    values = {key: values[key] for key in DEFAULT_VALUES if key in values}
+    clean_values = DEFAULT_VALUES.copy()
+
+    for key in DEFAULT_VALUES:
+        if key in values:
+            clean_values[key] = values[key]
 
     temp_path = CONFIG_PATH.with_suffix(".tmp")
 
@@ -51,7 +58,7 @@ def save_values(values):
         "w",
     ) as f:
         json.dump(
-            values,
+            clean_values,
             f,
             indent=4,
         )

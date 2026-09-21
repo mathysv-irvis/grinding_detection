@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 
 from calibration_config import (
     DEFAULT_VALUES,
@@ -8,32 +9,55 @@ from calibration_config import (
 
 
 PARAMETERS = {
-    "merge_distance": {
+    "plate_margin": {
+        "label": "Plate margin",
         "min": 0,
-        "max": 50,
+        "max": 200,
         "resolution": 1,
     },
     "intensity_min": {
+        "label": "Intensity min",
         "min": 0,
         "max": 255,
         "resolution": 1,
     },
     "intensity_max": {
+        "label": "Intensity max",
         "min": 0,
         "max": 255,
+        "resolution": 1,
+    },
+    "merge_distance": {
+        "label": "Merge distance",
+        "min": 0,
+        "max": 50,
+        "resolution": 1,
+    },
+    "contrast_threshold": {
+        "label": "Contrast threshold",
+        "min": 0,
+        "max": 100,
         "resolution": 1,
     },
 }
 
 
 class CalibrationUI:
-    def __init__(self, root):
+    def __init__(
+        self,
+        root,
+    ):
         self.root = root
 
-        self.root.title("Calibration")
-        self.root.resizable(False, False)
+        self.root.title("Detection Calibration")
+
+        self.root.resizable(
+            False,
+            False,
+        )
 
         self.values = load_values()
+
         self.variables = {}
         self.labels = {}
 
@@ -42,26 +66,95 @@ class CalibrationUI:
     def create_ui(self):
         frame = tk.Frame(
             self.root,
-            padx=12,
-            pady=10,
+            padx=15,
+            pady=15,
         )
 
         frame.pack()
 
-        for row, (name, config) in enumerate(PARAMETERS.items()):
-            tk.Label(
+        title = tk.Label(
+            frame,
+            text="Plate / Paint Calibration",
+            font=(
+                "TkDefaultFont",
+                11,
+                "bold",
+            ),
+        )
+
+        title.grid(
+            row=0,
+            column=0,
+            columnspan=3,
+            pady=(0, 15),
+        )
+
+        mode_label = tk.Label(
+            frame,
+            text="Detection mode",
+            width=18,
+            anchor="w",
+        )
+
+        mode_label.grid(
+            row=1,
+            column=0,
+            padx=(0, 10),
+            pady=5,
+        )
+
+        self.mode_variable = tk.StringVar(
+            value=self.values.get(
+                "detection_mode",
+                "intensity",
+            )
+        )
+
+        mode_combo = ttk.Combobox(
+            frame,
+            textvariable=(self.mode_variable),
+            values=[
+                "intensity",
+                "contrast",
+            ],
+            state="readonly",
+            width=27,
+        )
+
+        mode_combo.grid(
+            row=1,
+            column=1,
+            columnspan=2,
+            pady=5,
+        )
+
+        mode_combo.bind(
+            "<<ComboboxSelected>>",
+            self.mode_changed,
+        )
+
+        for row, (
+            name,
+            config,
+        ) in enumerate(
+            PARAMETERS.items(),
+            start=2,
+        ):
+            label = tk.Label(
                 frame,
-                text=name,
+                text=config["label"],
                 width=18,
                 anchor="w",
-            ).grid(
-                row=row,
-                column=0,
-                padx=(0, 8),
-                pady=4,
             )
 
-            variable = tk.IntVar(value=self.values[name])
+            label.grid(
+                row=row,
+                column=0,
+                padx=(0, 10),
+                pady=5,
+            )
+
+            variable = tk.IntVar(value=int(self.values[name]))
 
             self.variables[name] = variable
 
@@ -72,43 +165,78 @@ class CalibrationUI:
                 to=config["max"],
                 resolution=config["resolution"],
                 orient=tk.HORIZONTAL,
-                length=250,
+                length=280,
                 showvalue=False,
-                command=lambda value, n=name: self.slider_changed(n, value),
+                highlightthickness=0,
+                command=(
+                    lambda value, parameter=name: self.slider_changed(
+                        parameter,
+                        value,
+                    )
+                ),
             )
 
             scale.grid(
                 row=row,
                 column=1,
-                pady=4,
+                pady=5,
             )
 
             value_label = tk.Label(
                 frame,
                 text=str(self.values[name]),
-                width=7,
+                width=6,
                 anchor="e",
             )
 
             value_label.grid(
                 row=row,
                 column=2,
-                padx=(8, 0),
+                padx=(10, 0),
             )
 
             self.labels[name] = value_label
 
-        tk.Button(
-            frame,
-            text="Reset",
-            command=self.reset,
-            width=10,
-        ).grid(
-            row=len(PARAMETERS),
+        button_frame = tk.Frame(frame)
+
+        button_frame.grid(
+            row=len(PARAMETERS) + 2,
             column=0,
             columnspan=3,
-            pady=(12, 0),
+            pady=(15, 0),
         )
+
+        reset_button = tk.Button(
+            button_frame,
+            text="Reset",
+            width=12,
+            command=self.reset,
+        )
+
+        reset_button.pack(
+            side=tk.LEFT,
+            padx=5,
+        )
+
+        close_button = tk.Button(
+            button_frame,
+            text="Close",
+            width=12,
+            command=self.root.destroy,
+        )
+
+        close_button.pack(
+            side=tk.LEFT,
+            padx=5,
+        )
+
+    def mode_changed(
+        self,
+        event=None,
+    ):
+        self.values["detection_mode"] = self.mode_variable.get()
+
+        save_values(self.values)
 
     def slider_changed(
         self,
@@ -126,7 +254,15 @@ class CalibrationUI:
     def reset(self):
         self.values = DEFAULT_VALUES.copy()
 
-        for name, value in self.values.items():
+        self.mode_variable.set(self.values["detection_mode"])
+
+        for (
+            name,
+            value,
+        ) in self.values.items():
+            if name not in self.variables:
+                continue
+
             self.variables[name].set(value)
 
             self.labels[name].config(text=str(value))

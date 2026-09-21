@@ -1,33 +1,31 @@
 import cv2
-import time
 import threading
 
 from abc import ABC, abstractmethod
 from pathlib import Path
 
 import rclpy
-from rclpy.node import Node
 
+from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
-class BaseCamera(ABC):
 
+class BaseCamera(ABC):
     def __init__(
         self,
-        window_name = "Camera",
-        exit_keys   = (27, ord("q")),
+        window_name="Camera",
+        exit_keys=(27, ord("q")),
     ):
-
         self.window_name = window_name
-        self.exit_keys   = exit_keys
+        self.exit_keys = exit_keys
 
         self.running = False
-        self.thread  = None
+        self.thread = None
 
-        self.frame   = None
+        self.frame = None
         self.display = None
-        self.mask    = None
+        self.mask = None
 
         self.lock = threading.Lock()
 
@@ -45,17 +43,14 @@ class BaseCamera(ABC):
 
     def _worker(
         self,
-        process_frame = None,
+        process_frame=None,
         *args,
         **kwargs,
     ):
-
         self.open()
 
         try:
-
             while self.running:
-
                 ok, frame = self.read()
 
                 if not ok:
@@ -75,150 +70,143 @@ class BaseCamera(ABC):
                     display = frame
 
                 with self.lock:
-
-                    self.frame   = frame
+                    self.frame = frame
                     self.display = display
-                    self.mask    = mask
+                    self.mask = mask
 
         finally:
-
             self.release()
             self.running = False
 
     def start(
         self,
-        process_frame = None,
+        process_frame=None,
         *args,
         **kwargs,
     ):
-
         if self.running:
             return
 
         self.running = True
 
         self.thread = threading.Thread(
-            target = self._worker,
-            args   = (process_frame, *args),
-            kwargs = kwargs,
-            daemon = True,
+            target=self._worker,
+            args=(process_frame, *args),
+            kwargs=kwargs,
+            daemon=True,
         )
 
         self.thread.start()
 
     def stop(self):
-
         self.running = False
 
-        if self.thread is not None:
+        if self.thread is not None and self.thread.is_alive():
             self.thread.join()
 
+        self.thread = None
+
     def get_frame(self):
-
         with self.lock:
-
             if self.frame is None:
                 return None
 
             return self.frame.copy()
 
     def get_display(self):
-
         with self.lock:
-
             if self.display is None:
                 return None
 
             return self.display.copy()
 
     def get_mask(self):
-
         with self.lock:
-
             if self.mask is None:
                 return None
 
             return self.mask.copy()
 
-
-        if window_name is None:
-            window_name = self.window_name
-
     def run(
         self,
-        process_frame = None,
+        process_frame=None,
         *args,
         **kwargs,
     ):
-
         self.start(
-            process_frame = process_frame,
+            process_frame=process_frame,
             *args,
             **kwargs,
         )
 
         try:
-
             while self.running:
-
                 display = self.get_display()
 
-        finally:
+                if display is None:
+                    continue
 
+                cv2.imshow(
+                    self.window_name,
+                    display,
+                )
+
+                key = cv2.waitKey(1) & 0xFF
+
+                if key in self.exit_keys:
+                    break
+
+        finally:
             self.stop()
             cv2.destroyAllWindows()
 
-class CameraRunner(BaseCamera):
 
+class CameraRunner(BaseCamera):
     def __init__(
         self,
-        camera_index = 0,
-        window_name  = "Camera",
+        camera_index=0,
+        window_name="Camera",
     ):
-
         super().__init__(
-            window_name = window_name,
+            window_name=window_name,
         )
 
         self.camera_index = camera_index
-        self.cap          = None
+        self.cap = None
 
     def open(self):
-
-        self.cap = cv2.VideoCapture(
-            self.camera_index
-        )
+        self.cap = cv2.VideoCapture(self.camera_index)
 
         if not self.cap.isOpened():
-            raise RuntimeError(
-                f"Cannot open camera {self.camera_index}"
-            )
+            raise RuntimeError(f"Cannot open camera {self.camera_index}")
 
     def read(self):
+        if self.cap is None:
+            return False, None
 
         return self.cap.read()
 
     def release(self):
-
         if self.cap is not None:
             self.cap.release()
 
+            self.cap = None
+
 
 class CameraSim(BaseCamera):
-
     def __init__(
         self,
         source,
-        window_name = "CameraSim",
-        loop_video  = True,
+        window_name="CameraSim",
+        loop_video=True,
     ):
-
         super().__init__(
-            window_name = window_name,
+            window_name=window_name,
         )
 
         if isinstance(source, str):
             self.source = Path(source)
+
             if not self.source.exists():
                 raise FileNotFoundError(self.source)
 
@@ -226,13 +214,15 @@ class CameraSim(BaseCamera):
             self.source = int(source)
 
         self.loop_video = loop_video
-        self.cap        = None
-        self.image      = None
-        self.is_image   = False
-        self.is_video   = False
+
+        self.cap = None
+        self.image = None
+
+        self.is_image = False
+        self.is_video = False
+        self.is_camera = False
 
     def open(self):
-
         image_extensions = {
             ".jpg",
             ".jpeg",
@@ -245,62 +235,61 @@ class CameraSim(BaseCamera):
 
         video_extensions = {
             ".mp4",
+            ".avi",
+            ".mov",
+            ".mkv",
         }
 
-        if not isinstance(self.source, int):
-            self.is_image = (
-                self.source.suffix.lower() in image_extensions
-            )
-
-            self.is_video = (
-                self.source.suffix.lower() in video_extensions
-            )
-
-        if self.is_image:
-
-            self.image = cv2.imread(
-                str(self.source)
-            )
-
-            if self.image is None:
-                raise RuntimeError(
-                    f"Cannot read image {self.source}"
-                )
-
-        elif self.is_video:
-
-            self.cap = cv2.VideoCapture(
-                str(self.source)
-            )
-
-            if not self.cap.isOpened():
-                raise RuntimeError(
-                    f"Cannot open video {self.source}"
-                )
+        if isinstance(
+            self.source,
+            int,
+        ):
+            self.is_camera = True
 
         else:
+            suffix = self.source.suffix.lower()
 
-            self.cap = cv2.VideoCapture(
-                int(self.source)
-            )
+            self.is_image = suffix in image_extensions
 
-            if not self.cap.isOpened():
-                raise RuntimeError(
-                    f"Cannot open camera {self.source}"
-                )
-
-    def read(self):
+            self.is_video = suffix in video_extensions
 
         if self.is_image:
-            return True, self.image.copy()
+            self.image = cv2.imread(str(self.source))
+
+            if self.image is None:
+                raise RuntimeError(f"Cannot read image {self.source}")
+
+        elif self.is_video:
+            self.cap = cv2.VideoCapture(str(self.source))
+
+            if not self.cap.isOpened():
+                raise RuntimeError(f"Cannot open video {self.source}")
+
+        elif self.is_camera:
+            self.cap = cv2.VideoCapture(int(self.source))
+
+            if not self.cap.isOpened():
+                raise RuntimeError(f"Cannot open camera {self.source}")
+
+        else:
+            raise ValueError(f"Unsupported source: {self.source}")
+
+    def read(self):
+        if self.is_image:
+            return (
+                True,
+                self.image.copy(),
+            )
+
+        if self.cap is None:
+            return False, None
 
         ok, frame = self.cap.read()
 
         if ok:
             return True, frame
 
-        if self.loop_video:
-
+        if self.is_video and self.loop_video:
             self.cap.set(
                 cv2.CAP_PROP_POS_FRAMES,
                 0,
@@ -311,51 +300,53 @@ class CameraSim(BaseCamera):
         return False, None
 
     def release(self):
-
         if self.cap is not None:
             self.cap.release()
 
-class CameraROS:
+            self.cap = None
 
+        self.image = None
+
+
+class CameraROS(BaseCamera):
     def __init__(
         self,
-        topic       = "/camera/image_raw",
-        node_name   = "camera_ros",
-        window_name = "CameraROS",
+        topic="/camera/image_raw",
+        node_name="camera_ros",
+        window_name="CameraROS",
     ):
-
         super().__init__(
-            window_name = window_name,
+            window_name=window_name,
         )
 
-        self.topic  = topic
+        self.topic = topic
         self.bridge = CvBridge()
 
         self.latest_frame = None
-        self.frame_lock   = threading.Lock()
+        self.frame_lock = threading.Lock()
 
         if not rclpy.ok():
             rclpy.init()
 
         self.node = Node(node_name)
 
-        self.subscription = (
-            self.node.create_subscription(
-                Image,
-                self.topic,
-                self.image_callback,
-                10,
-            )
+        self.subscription = self.node.create_subscription(
+            Image,
+            self.topic,
+            self.image_callback,
+            10,
         )
 
         self.spin_thread = threading.Thread(
-            target = rclpy.spin,
-            args   = (self.node,),
-            daemon = True,
+            target=rclpy.spin,
+            args=(self.node,),
+            daemon=True,
         )
 
-    def image_callback(self, msg):
-
+    def image_callback(
+        self,
+        msg,
+    ):
         frame = self.bridge.imgmsg_to_cv2(
             msg,
             desired_encoding="bgr8",
@@ -365,13 +356,11 @@ class CameraROS:
             self.latest_frame = frame
 
     def open(self):
-
-        self.spin_thread.start()
+        if not self.spin_thread.is_alive():
+            self.spin_thread.start()
 
     def read(self):
-
         with self.frame_lock:
-
             if self.latest_frame is None:
                 return False, None
 
@@ -381,5 +370,7 @@ class CameraROS:
             )
 
     def release(self):
+        if self.node is not None:
+            self.node.destroy_node()
 
-        self.node.destroy_node()
+            self.node = None
